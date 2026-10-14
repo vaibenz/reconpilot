@@ -99,7 +99,7 @@ object EvalMain {
             report.appendLine(Metrics.HEADER)
             rows.forEach { report.appendLine(it.row()) }
             report.appendLine()
-            report.appendLine("The verifier rejected ${verified.rejected.size} LLM suggestions: $caught were genuinely wrong, $blocked were correct matches it was too strict on, and ${verified.rejected.count { it.reason == RejectionReason.CONFLICT }} lost a conflict. Every one is in `llm_rejections.jsonl`.")
+            report.appendLine("The verifier rejected ${verified.rejected.size} LLM suggestions: $caught genuinely wrong, $blocked correct but blocked by a strict check, ${verified.rejected.count { it.reason == RejectionReason.CONFLICT }} lost a conflict. Every one is in `llm_rejections.jsonl`.")
         } else {
             report.appendLine("No ANTHROPIC_API_KEY or GEMINI_API_KEY set and no cached replies, so only the rules baseline ran.")
             report.appendLine()

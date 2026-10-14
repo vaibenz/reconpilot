@@ -44,13 +44,21 @@ It writes [`eval/report.md`](eval/report.md) with an overall table and a per sce
 
 Model replies are cached in `eval/llm_cache.jsonl` keyed by a hash of the prompt, so a run is reproducible and free to repeat once the cache exists.
 
-Current baseline on the committed dataset:
+Results on the committed dataset with Gemini 3.5 Flash-Lite (replies cached in `eval/llm_cache.jsonl`, so `./gradlew :core:eval` reproduces these numbers without a key):
 
 | Pipeline | Matches made | Correct | Wrong | Precision | Recall | F1 |
 |---|---|---|---|---|---|---|
 | Rules only (exact reference and amount) | 60 | 60 | 0 | 1.000 | 0.458 | 0.628 |
+| LLM proposals, unverified | 131 | 120 | 11 | 0.916 | 0.916 | 0.916 |
+| LLM proposals + deterministic checks | 120 | 119 | 1 | 0.992 | 0.908 | 0.948 |
 
-The rules never make a wrong match but find less than half of the real ones. Run the LLM pipeline to fill in the other two rows. The matcher sits behind a small `LlmClient` interface, so it works with either provider:
+What the numbers say:
+
+1. **The LLM doubles recall.** Rules find none of the fee deductions, name only transfers or number only references; the model gets all 55 of them.
+2. **On its own, the LLM is not safe to trust.** It matched all 10 part payments to the full invoice. The amount check blocked every one, lifting precision from 0.916 to 0.992 for a single lost correct match.
+3. **Confidence is not calibrated.** The one wrong match that survived is a look alike twin invoice: same customer, same amount, no reference. Both invoices pass every check, so the verifier cannot tell them apart, and the model picked the wrong one at 0.95 confidence despite being told to abstain when two invoices are equally plausible. That is the reason a human approves every match rather than auto posting high confidence ones.
+
+Run it against a live model with your own key:
 
 ```bash
 # Free: Gemini API key from Google AI Studio, throttled to stay inside free tier limits
@@ -60,11 +68,11 @@ GEMINI_API_KEY=... ./gradlew :core:eval
 ANTHROPIC_API_KEY=... ./gradlew :core:eval
 ```
 
-On the free tier the run is paced at 12 requests a minute, so it takes about 15 minutes. Replies are cached as they arrive, so stopping and rerunning picks up where it left off.
+On the free tier the run is paced at 12 requests a minute, so it takes about 15 minutes. Replies are cached as they arrive, so stopping and rerunning picks up where it left off. Delete `eval/llm_cache.jsonl` to force fresh calls.
 
 ### Known trade off
 
-The reference check is deliberately strict. A truncated reference such as `INV-4821` for invoice `INV-48217` reads as a citation of a different invoice, so the verifier blocks it even when the model guessed right. I chose to give up that recall rather than let a mismatched reference through, and the rejection log makes the cost visible.
+The reference check is deliberately strict. A truncated reference such as `INV-4821` for invoice `INV-48217` reads as a citation of a different invoice, so the verifier blocks it even when the model guessed right. In the run above that cost exactly one correct match. Interestingly the model was cautious here too, abstaining on 7 of the 8 truncated references. I chose to give up that recall rather than let a mismatched reference through, and the rejection log makes the cost visible.
 
 ## Running it
 

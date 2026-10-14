@@ -2,7 +2,7 @@
 
 Dataset: 172 bank lines, 212 open invoices, 131 true matches. Generated 2026-10-15.
 
-Model: Gemini gemini-3.5-flash-lite. LLM errors: 0.
+Model: Gemini gemini-3.5-flash-lite (replayed from cache). LLM errors: 0.
 
 | Pipeline | Matches made | Correct | Wrong | Precision | Recall | F1 |
 |---|---|---|---|---|---|---|
@@ -10,7 +10,7 @@ Model: Gemini gemini-3.5-flash-lite. LLM errors: 0.
 | LLM proposals, unverified | 131 | 120 | 11 | 0.916 | 0.916 | 0.916 |
 | LLM proposals + deterministic checks | 120 | 119 | 1 | 0.992 | 0.908 | 0.948 |
 
-The verifier rejected 11 LLM suggestions: 10 were genuinely wrong, 1 were correct matches it was too strict on, and 0 lost a conflict. Every one is in `llm_rejections.jsonl`.
+The verifier rejected 11 LLM suggestions: 10 genuinely wrong, 1 correct but blocked by a strict check, 0 lost a conflict. Every one is in `llm_rejections.jsonl`.
 
 ## Per scenario
 
