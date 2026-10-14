@@ -30,6 +30,8 @@ class LlmMatcher(
     private val client: LlmClient,
     private val candidateFinder: CandidateFinder = CandidateFinder(),
     private val parallelism: Int = 4,
+    /** Called with (done, total) after each bank line, for progress output on long runs. */
+    private val onProgress: ((Int, Int) -> Unit)? = null,
 ) : Matcher {
 
     private val log = ConcurrentLinkedQueue<LlmDecision>()
@@ -41,7 +43,16 @@ class LlmMatcher(
         log.clear()
         val pool = Executors.newFixedThreadPool(parallelism)
         try {
-            val futures = lines.map { line -> pool.submit<MatchProposal?> { decide(line, invoices) } }
+            val done = java.util.concurrent.atomic.AtomicInteger()
+            val futures = lines.map { line ->
+                pool.submit<MatchProposal?> {
+                    try {
+                        decide(line, invoices)
+                    } finally {
+                        onProgress?.invoke(done.incrementAndGet(), lines.size)
+                    }
+                }
+            }
             return futures.mapNotNull { it.get() }
         } finally {
             pool.shutdown()

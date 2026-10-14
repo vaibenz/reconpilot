@@ -2,7 +2,7 @@ package dev.vaibenz.reconpilot.server
 
 import dev.vaibenz.reconpilot.Reconciler
 import dev.vaibenz.reconpilot.io.Csv
-import dev.vaibenz.reconpilot.llm.AnthropicClient
+import dev.vaibenz.reconpilot.llm.LlmClients
 import dev.vaibenz.reconpilot.llm.LlmMatcher
 import dev.vaibenz.reconpilot.match.Matcher
 import dev.vaibenz.reconpilot.match.RulesMatcher
@@ -121,10 +121,10 @@ class ReviewService(private val matcher: Matcher, val mode: String) {
     private fun invoiceView(i: Invoice) = InvoiceView(i.id, i.number, i.customer, i.issueDate.toString(), i.dueDate.toString(), i.amount.toPlainString(), i.currency)
 
     companion object {
-        /** Uses the LLM when ANTHROPIC_API_KEY is set, otherwise falls back to the rules baseline. */
+        /** Uses an LLM when ANTHROPIC_API_KEY or GEMINI_API_KEY is set, otherwise falls back to the rules baseline. */
         fun fromEnvironment(): ReviewService {
-            val client = AnthropicClient.fromEnv()
-            return if (client != null) ReviewService(LlmMatcher(client), "llm") else ReviewService(RulesMatcher(), "rules")
+            val model = LlmClients.fromEnv()
+            return if (model != null) ReviewService(LlmMatcher(model.client), "llm") else ReviewService(RulesMatcher(), "rules")
         }
 
         fun firstExisting(vararg paths: String?): File? = paths.filterNotNull().map(::File).firstOrNull { it.exists() }

@@ -5,8 +5,8 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import dev.vaibenz.reconpilot.Reconciler
 import dev.vaibenz.reconpilot.io.Csv
-import dev.vaibenz.reconpilot.llm.AnthropicClient
 import dev.vaibenz.reconpilot.llm.CachingLlmClient
+import dev.vaibenz.reconpilot.llm.LlmClients
 import dev.vaibenz.reconpilot.llm.LlmMatcher
 import dev.vaibenz.reconpilot.match.RulesMatcher
 import dev.vaibenz.reconpilot.model.RejectionReason
@@ -18,7 +18,8 @@ import java.time.LocalDate
  * verification, then writes a markdown report and a log of every AI suggestion the verifier rejected.
  *
  * Usage: eval [dataDir] [outDir]
- * Set ANTHROPIC_API_KEY to call the model; replies are cached in outDir/llm_cache.jsonl and replayed later.
+ * Set ANTHROPIC_API_KEY or GEMINI_API_KEY to call a model; replies are cached in outDir/llm_cache.jsonl
+ * and replayed on later runs, so an interrupted run resumes where it stopped.
  */
 object EvalMain {
 
@@ -45,12 +46,19 @@ object EvalMain {
         val scenarioColumns = linkedMapOf("Rules" to rulesResult.accepted.associate { it.proposal.bankLineId to it.proposal.invoiceId })
 
         val cacheFile = File(outDir, "llm_cache.jsonl")
-        val live = AnthropicClient.fromEnv()
+        val configured = LlmClients.fromEnv()
+        val live = configured?.client
+        val modelFile = File(outDir, "model.txt")
+        if (configured != null) modelFile.writeText(configured.label)
+        val modelLabel = configured?.label ?: modelFile.takeIf { it.exists() }?.readText()?.trim() ?: "unknown model"
         val cached = CachingLlmClient(live, cacheFile)
         val llmAvailable = live != null || cached.size > 0
 
         if (llmAvailable) {
-            val matcher = LlmMatcher(cached)
+            if (live != null) println("Calling $modelLabel for ${lines.size} bank lines. Cached replies are reused, so it is safe to stop and rerun.")
+            val matcher = LlmMatcher(cached, onProgress = { done, total ->
+                if (live != null && (done % 10 == 0 || done == total)) println("  $done / $total bank lines")
+            })
             val reconciler = Reconciler(matcher)
             val proposals = matcher.propose(lines, invoices)
             val raw = Scorer.unverified(proposals)
@@ -86,14 +94,14 @@ object EvalMain {
                 rejectionLog.appendText(gson.toJson(record) + "\n")
             }
             val errors = matcher.decisions.count { it.error != null }
-            report.appendLine("Model: ${System.getenv("RECONPILOT_MODEL") ?: AnthropicClient.DEFAULT_MODEL}${if (live == null) " (replayed from cache)" else ""}. LLM errors: $errors.")
+            report.appendLine("Model: $modelLabel${if (live == null) " (replayed from cache)" else ""}. LLM errors: $errors.")
             report.appendLine()
             report.appendLine(Metrics.HEADER)
             rows.forEach { report.appendLine(it.row()) }
             report.appendLine()
             report.appendLine("The verifier rejected ${verified.rejected.size} LLM suggestions: $caught were genuinely wrong, $blocked were correct matches it was too strict on, and ${verified.rejected.count { it.reason == RejectionReason.CONFLICT }} lost a conflict. Every one is in `llm_rejections.jsonl`.")
         } else {
-            report.appendLine("No ANTHROPIC_API_KEY set and no cached replies, so only the rules baseline ran.")
+            report.appendLine("No ANTHROPIC_API_KEY or GEMINI_API_KEY set and no cached replies, so only the rules baseline ran.")
             report.appendLine()
             report.appendLine(Metrics.HEADER)
             rows.forEach { report.appendLine(it.row()) }

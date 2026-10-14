@@ -41,3 +41,15 @@ class CsvAndDatasetTest {
         assertTrue(a.lines.mapNotNull { it.invoiceId }.all { it in invoiceIds })
     }
 }
+
+class GeminiParsingTest {
+    @Test fun `joins text parts of the first candidate`() {
+        val json = """{"candidates":[{"content":{"parts":[{"text":"{\"invoice_id\":"},{"text":"\"I-1\"}"}]},"finishReason":"STOP"}]}"""
+        assertEquals("{\"invoice_id\":\"I-1\"}", dev.vaibenz.reconpilot.llm.GeminiClient.extractText(json))
+    }
+
+    @Test fun `blocked replies raise instead of returning empty text`() {
+        val blocked = runCatching { dev.vaibenz.reconpilot.llm.GeminiClient.extractText("""{"promptFeedback":{"blockReason":"SAFETY"}}""") }
+        assertTrue(blocked.exceptionOrNull() is dev.vaibenz.reconpilot.llm.LlmException)
+    }
+}

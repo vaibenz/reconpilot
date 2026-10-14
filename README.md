@@ -50,11 +50,17 @@ Current baseline on the committed dataset:
 |---|---|---|---|---|---|---|
 | Rules only (exact reference and amount) | 60 | 60 | 0 | 1.000 | 0.458 | 0.628 |
 
-The rules never make a wrong match but find less than half of the real ones. Run the LLM pipeline with your own key to fill in the other two rows:
+The rules never make a wrong match but find less than half of the real ones. Run the LLM pipeline to fill in the other two rows. The matcher sits behind a small `LlmClient` interface, so it works with either provider:
 
 ```bash
+# Free: Gemini API key from Google AI Studio, throttled to stay inside free tier limits
+GEMINI_API_KEY=... ./gradlew :core:eval
+
+# Or Anthropic
 ANTHROPIC_API_KEY=... ./gradlew :core:eval
 ```
+
+On the free tier the run is paced at 12 requests a minute, so it takes about 15 minutes. Replies are cached as they arrive, so stopping and rerunning picks up where it left off.
 
 ### Known trade off
 
@@ -65,7 +71,7 @@ The reference check is deliberately strict. A truncated reference such as `INV-4
 Requirements: JDK 21 and Node 22.
 
 ```bash
-# API on :8080, loads data/ on start. Uses the LLM if ANTHROPIC_API_KEY is set, rules otherwise.
+# API on :8080, loads data/ on start. Uses an LLM if ANTHROPIC_API_KEY or GEMINI_API_KEY is set, rules otherwise.
 ./gradlew :server:run
 
 # Review UI on :5173, proxies /api to the server
@@ -74,7 +80,14 @@ cd web && npm install && npm run dev
 
 For a single process, run `npm run build` in `web/` first and the server will serve the built UI from `web/dist`.
 
-Optional environment variables: `RECONPILOT_MODEL` (defaults to `claude-haiku-5-5`), `RECONPILOT_DATA`, `RECONPILOT_WEB` and `PORT`.
+Optional environment variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RECONPILOT_MODEL` | `claude-haiku-5-5` | Anthropic model |
+| `RECONPILOT_GEMINI_MODEL` | `gemini-3.5-flash-lite` | Gemini model |
+| `RECONPILOT_RPM` | `12` | Gemini requests per minute |
+| `RECONPILOT_DATA`, `RECONPILOT_WEB`, `PORT` | `data`, `web/dist`, `8080` | Server paths and port |
 
 ### API
 
